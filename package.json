@@ -1,0 +1,29 @@
+{
+  "name": "refugio",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Un refugio privado para dos: una experiencia 3D inmersiva con voz, chat y un cielo que responde a la cercanía.",
+"engines": {
+    "node": "22.x"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@react-three/drei": "^9.114.0",
+    "@react-three/fiber": "^8.17.10",
+    "@react-three/postprocessing": "^2.16.3",
+    "firebase": "^10.14.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "three": "^0.169.0",
+    "tone": "^15.0.4"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.3",
+    "vite": "^5.4.10"
+  }
+}
