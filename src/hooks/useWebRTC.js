@@ -1,13 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
-import {
-  db,
-  doc,
-  collection,
-  setDoc,
-  updateDoc,
-  onSnapshot,
-  addDoc,
-} from '../firebase'
+import { db, doc, collection, updateDoc, onSnapshot, addDoc } from '../firebase'
 
 const ICE_SERVERS = {
   iceServers: [
@@ -16,27 +8,32 @@ const ICE_SERVERS = {
 }
 
 /**
- * Voz peer-to-peer entre dos personas usando WebRTC.
- * La señalización (oferta/respuesta/candidatos ICE) viaja por Firestore.
- * El "host" crea la oferta; el "guest" responde.
+ * Conexión en vivo (voz + video) peer-to-peer con WebRTC.
+ * Se pide audio+video desde el inicio para evitar renegociaciones (más estable,
+ * sobre todo en iPhone). Apagar cámara o micrófono solo desactiva la pista,
+ * no rehace la conexión. La señalización viaja por Firestore.
  */
 export function useWebRTC({ roomId, role, enabled }) {
   const [connected, setConnected] = useState(false)
-  const [micError, setMicError] = useState(null)
-  const [muted, setMuted] = useState(false)
+  const [error, setError] = useState(null)
+  const [micMuted, setMicMuted] = useState(false)
+  const [camOn, setCamOn] = useState(true)
+  const [localStream, setLocalStream] = useState(null)
+  const [remoteStream, setRemoteStream] = useState(null)
   const pcRef = useRef(null)
-  const localStreamRef = useRef(null)
-  const remoteAudioRef = useRef(null)
+  const localRef = useRef(null)
   const cleanupRef = useRef([])
 
   const teardown = useCallback(() => {
     cleanupRef.current.forEach((fn) => fn())
     cleanupRef.current = []
-    localStreamRef.current?.getTracks().forEach((t) => t.stop())
-    localStreamRef.current = null
+    localRef.current?.getTracks().forEach((t) => t.stop())
+    localRef.current = null
     pcRef.current?.close()
     pcRef.current = null
     setConnected(false)
+    setLocalStream(null)
+    setRemoteStream(null)
   }, [])
 
   useEffect(() => {
@@ -45,25 +42,31 @@ export function useWebRTC({ roomId, role, enabled }) {
 
     async function connect() {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          audio: { echoCancellation: true, noiseSuppression: true },
-          video: false,
-        })
+        let stream
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            audio: { echoCancellation: true, noiseSuppression: true },
+            video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
+          })
+        } catch {
+          // Si no hay cámara o la deniegan, seguimos solo con voz.
+          stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+          if (active) setCamOn(false)
+        }
         if (!active) {
           stream.getTracks().forEach((t) => t.stop())
           return
         }
-        localStreamRef.current = stream
+        localRef.current = stream
+        setLocalStream(stream)
+        if (active) setCamOn(stream.getVideoTracks().length > 0)
 
         const pc = new RTCPeerConnection(ICE_SERVERS)
         pcRef.current = pc
         stream.getTracks().forEach((t) => pc.addTrack(t, stream))
 
-        // Audio remoto
-        const remoteStream = new MediaStream()
         pc.ontrack = (e) => {
-          e.streams[0].getTracks().forEach((t) => remoteStream.addTrack(t))
-          if (remoteAudioRef.current) remoteAudioRef.current.srcObject = remoteStream
+          if (e.streams && e.streams[0]) setRemoteStream(e.streams[0])
         }
         pc.onconnectionstatechange = () => {
           if (pc.connectionState === 'connected') setConnected(true)
@@ -115,7 +118,7 @@ export function useWebRTC({ roomId, role, enabled }) {
           cleanupRef.current.push(unsubOffer, unsubCand)
         }
       } catch (e) {
-        if (active) setMicError(e.message)
+        if (active) setError(e.message)
       }
     }
 
@@ -126,13 +129,32 @@ export function useWebRTC({ roomId, role, enabled }) {
     }
   }, [enabled, roomId, role, teardown])
 
-  const toggleMute = useCallback(() => {
-    const stream = localStreamRef.current
+  const toggleMic = useCallback(() => {
+    const stream = localRef.current
     if (!stream) return
-    const next = !muted
+    const next = !micMuted
     stream.getAudioTracks().forEach((t) => (t.enabled = !next))
-    setMuted(next)
-  }, [muted])
+    setMicMuted(next)
+  }, [micMuted])
 
-  return { connected, micError, muted, toggleMute, remoteAudioRef }
+  const toggleCam = useCallback(() => {
+    const stream = localRef.current
+    if (!stream) return
+    const tracks = stream.getVideoTracks()
+    if (tracks.length === 0) return
+    const next = !camOn
+    tracks.forEach((t) => (t.enabled = next))
+    setCamOn(next)
+  }, [camOn])
+
+  return {
+    connected,
+    error,
+    micMuted,
+    toggleMic,
+    camOn,
+    toggleCam,
+    localStream,
+    remoteStream,
+  }
 }

@@ -22,9 +22,7 @@ function Round({ active, onClick, title, children, accent }) {
         display: 'grid',
         placeItems: 'center',
         fontSize: 20,
-        background: active
-          ? accent || 'var(--ambar)'
-          : 'var(--vidrio)',
+        background: active ? accent || 'var(--ambar)' : 'var(--vidrio)',
         color: active ? 'var(--noche)' : 'var(--crema)',
         border: '1px solid var(--vidrio-borde)',
         backdropFilter: 'blur(12px)',
@@ -44,11 +42,13 @@ export default function HUD({
   partnerPresent,
   partnerName,
   inviteUrl,
-  voiceOn,
-  onToggleVoice,
-  voiceConnected,
-  muted,
-  onToggleMute,
+  liveOn,
+  onToggleLive,
+  liveConnected,
+  micMuted,
+  onToggleMic,
+  camOn,
+  onToggleCam,
   musicOn,
   onToggleMusic,
   onToggleChat,
@@ -67,7 +67,11 @@ export default function HUD({
   const share = async () => {
     if (navigator.share) {
       try {
-        await navigator.share({ title: 'Refugio', text: 'Te espero en nuestro refugio bajo las estrellas 💫', url: inviteUrl })
+        await navigator.share({
+          title: 'Refugio',
+          text: 'Te espero en nuestro refugio bajo las estrellas 💫',
+          url: inviteUrl,
+        })
       } catch {}
     } else copy()
   }
@@ -108,7 +112,10 @@ export default function HUD({
             aria-pressed={interaction?.type === a.type}
             style={{
               ...styles.action,
-              background: interaction?.type === a.type ? 'linear-gradient(120deg, var(--ambar), var(--dorado))' : 'var(--vidrio)',
+              background:
+                interaction?.type === a.type
+                  ? 'linear-gradient(120deg, var(--ambar), var(--dorado))'
+                  : 'var(--vidrio)',
               color: interaction?.type === a.type ? 'var(--noche)' : 'var(--crema)',
             }}
           >
@@ -120,12 +127,32 @@ export default function HUD({
 
       {/* Cluster de utilidades */}
       <div style={styles.utils}>
-        <Round active={voiceOn} onClick={onToggleVoice} title={voiceOn ? 'Cortar voz' : 'Activar voz'} accent="#7ce0a0">
-          {voiceOn ? (voiceConnected ? '🎙️' : '…') : '🎙️'}
+        <Round
+          active={liveOn}
+          onClick={onToggleLive}
+          title={liveOn ? 'Terminar en vivo' : 'Conectar en vivo (voz y video)'}
+          accent="#7ce0a0"
+        >
+          {liveOn ? (liveConnected ? '📹' : '…') : '📹'}
         </Round>
-        {voiceOn && (
-          <Round active={muted} onClick={onToggleMute} title={muted ? 'Reactivar micrófono' : 'Silenciar micrófono'} accent="#ff9aa8">
-            {muted ? '🔇' : '🔈'}
+        {liveOn && (
+          <Round
+            active={!camOn}
+            onClick={onToggleCam}
+            title={camOn ? 'Apagar cámara' : 'Encender cámara'}
+            accent="#b794ff"
+          >
+            {camOn ? '📷' : '🚫'}
+          </Round>
+        )}
+        {liveOn && (
+          <Round
+            active={micMuted}
+            onClick={onToggleMic}
+            title={micMuted ? 'Reactivar micrófono' : 'Silenciar micrófono'}
+            accent="#ff9aa8"
+          >
+            {micMuted ? '🔇' : '🔈'}
           </Round>
         )}
         <Round active={musicOn} onClick={onToggleMusic} title={musicOn ? 'Pausar música' : 'Música ambiental'}>

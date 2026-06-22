@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import Scene from './Scene'
 import HUD from './HUD'
 import TextChat from './TextChat'
+import LiveVideo from './LiveVideo'
 import { useRoom } from '../hooks/useRoom'
 import { useWebRTC } from '../hooks/useWebRTC'
 import { useChat } from '../hooks/useChat'
@@ -20,20 +21,24 @@ export default function Room({ roomId, uid, profile, inviteUrl, onLeave }) {
     setSharedInteraction,
   } = useRoom({ roomId, uid, profile })
 
-  const [voiceOn, setVoiceOn] = useState(false)
+  const [liveOn, setLiveOn] = useState(false)
   const [musicOn, setMusicOn] = useState(false)
   const [chatOpen, setChatOpen] = useState(false)
   const [unread, setUnread] = useState(0)
 
-  const { connected, muted, toggleMute, remoteAudioRef, micError } = useWebRTC({
-    roomId,
-    role,
-    enabled: voiceOn,
-  })
+  const {
+    connected,
+    micMuted,
+    toggleMic,
+    camOn,
+    toggleCam,
+    localStream,
+    remoteStream,
+    error: liveError,
+  } = useWebRTC({ roomId, role, enabled: liveOn })
 
   const { messages, send } = useChat({ roomId, uid, name: profile.name })
 
-  // Música ambiental (requiere gesto del usuario para iniciar)
   const toggleMusic = () => {
     if (!musicOn) {
       startAmbient(-15)
@@ -45,7 +50,6 @@ export default function Room({ roomId, uid, profile, inviteUrl, onLeave }) {
   }
   useEffect(() => () => stopAmbient(), [])
 
-  // Contador de mensajes no leídos
   const lastCount = useRef(0)
   useEffect(() => {
     if (chatOpen) {
@@ -95,6 +99,15 @@ export default function Room({ roomId, uid, profile, inviteUrl, onLeave }) {
         interaction={interaction}
       />
 
+      {liveOn && (
+        <LiveVideo
+          localStream={localStream}
+          remoteStream={remoteStream}
+          myName={profile.name}
+          partnerName={partner?.name}
+        />
+      )}
+
       {ready && (
         <HUD
           interaction={interaction}
@@ -102,11 +115,13 @@ export default function Room({ roomId, uid, profile, inviteUrl, onLeave }) {
           partnerPresent={partnerPresent}
           partnerName={partner?.name}
           inviteUrl={inviteUrl}
-          voiceOn={voiceOn}
-          onToggleVoice={() => setVoiceOn((v) => !v)}
-          voiceConnected={connected}
-          muted={muted}
-          onToggleMute={toggleMute}
+          liveOn={liveOn}
+          onToggleLive={() => setLiveOn((v) => !v)}
+          liveConnected={connected}
+          micMuted={micMuted}
+          onToggleMic={toggleMic}
+          camOn={camOn}
+          onToggleCam={toggleCam}
           musicOn={musicOn}
           onToggleMusic={toggleMusic}
           onToggleChat={() => setChatOpen((c) => !c)}
@@ -123,12 +138,7 @@ export default function Room({ roomId, uid, profile, inviteUrl, onLeave }) {
         onToggle={() => setChatOpen(false)}
       />
 
-      {micError && (
-        <div style={micErr}>No pude acceder al micrófono: {micError}</div>
-      )}
-
-      {/* Audio remoto de la pareja */}
-      <audio ref={remoteAudioRef} autoPlay playsInline />
+      {liveError && <div style={micErr}>No pude acceder a la cámara/micrófono: {liveError}</div>}
     </div>
   )
 }
